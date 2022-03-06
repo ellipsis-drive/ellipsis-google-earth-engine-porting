@@ -249,7 +249,8 @@ def test_main_vector():
         
 
 def main():
-    debug = True
+    debug = len(sys.argv) > 1 and sys.argv[1] == "debug"
+    
     ellipsis_token = get_ellipsis_token() if debug else ask_ellipsis_token()
     if debug:
         init_ee_service_account()
