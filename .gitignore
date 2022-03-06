@@ -1,0 +1,5 @@
+node_modules/
+.private-key.json
+secret.py
+private-key.*
+privateKey.js
