@@ -1,3 +1,5 @@
+> This project is still in beta. We will actively fix bugs that you report.
+
 ### Import Google Earth Engine assets to Ellipsis Drive blocks
 
 This python command-line tool allows you to import Google Earth Engine assets to Ellipsis Drive blocks. It can also create blocks, layers or captures on the fly.
