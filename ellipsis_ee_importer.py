@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import csv
 import sys
 from pathlib import Path
+from getpass import getpass
 
 try:
     import secret
@@ -19,13 +20,17 @@ scriptDirectory = Path(__file__).parent.absolute()
 
 def init_ee_service_account():
     service_account = 'eetestservice@ee-dutchjelly.iam.gserviceaccount.com'
-    credentials = ee.ServiceAccountCredentials(service_account, os.path.join(scriptDirectory, '.private-key.json'))
+    credentials = ee.ServiceAccountCredentials(service_account, '.private-key.json')
     ee.Initialize(credentials)
 
 def ask_ellipsis_token():
-    username = input("specify your ellipsis drive username: ")
-    password = input("specify your ellipsis drive password: ")
-    return el.logIn(username=username, password=password)
+    while True:
+        username = input("specify your ellipsis drive username: ")
+        password = getpass("specify your ellipsis drive password: ")
+        try:
+            return el.logIn(username=username, password=password)
+        except:
+            print("Invalid login credentials.")
 
 def get_ellipsis_token():
     return el.logIn(username=secret.username, password=secret.password)
@@ -282,7 +287,11 @@ def main():
     if autologin:
         init_ee_service_account()
     else:
-        ee.Authenticate()
+        while True:
+            try:
+                ee.Authenticate()
+            except:
+                print("invalid token")
         ee.Initialize()
     
     wants_another_block = "y"
