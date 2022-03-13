@@ -7,6 +7,7 @@ import os
 from datetime import datetime, timedelta
 import csv
 import sys
+from pathlib import Path
 
 try:
     import secret
@@ -14,9 +15,11 @@ except ImportError:
     a = 1
     
 
+scriptDirectory = Path(__file__).parent.absolute()
+
 def init_ee_service_account():
     service_account = 'eetestservice@ee-dutchjelly.iam.gserviceaccount.com'
-    credentials = ee.ServiceAccountCredentials(service_account, '.private-key.json')
+    credentials = ee.ServiceAccountCredentials(service_account, os.path.join(scriptDirectory, '.private-key.json'))
     ee.Initialize(credentials)
 
 def ask_ellipsis_token():
@@ -39,15 +42,20 @@ def ask_and_get_ellipsis_block(ellipsis_token):
     shapes = None
     maps = None
     while not shapes and not maps: 
-        name = input("input your (new) ellipsis map name: ")
+        name = input("input your (new) ellipsis map name (empty to exit): ")
         maps = el.getMaps(name=name, fuzzyMatch=False, token=ellipsis_token)
         shapes = el.getShapes(name=name, fuzzyMatch=False, token=ellipsis_token)
+
+        if not name or name.strip() == "":
+            return (None,None)
 
         if not shapes and not maps:
             print("could not find map with name " + name)
             createChoice = input("do you want to create one? [y/n]: ")
             if createChoice == "y":
                 return create_and_get_ellipsis_block(ellipsis_token, name)
+            else:
+                return (None,None)
         else:
             return (True, shapes[0]) if shapes else (False, maps[0]) 
 
@@ -91,7 +99,7 @@ def ask_and_get_capture(ellipsis_token, ellipsis_map):
     captureCount = len(ellipsis_map["timestamps"])
     
     while(True):
-        choice = input("Do you want to add data to an existing capture [e] or a new capture? [y]" if captureCount > 0 else "There are no existing captures. Do you want to create one? [y/n]").lower().strip()
+        choice = input("Do you want to add data to an existing capture [e] or a new capture [y]? " if captureCount > 0 else "There are no existing captures. Do you want to create one [y/n]? ").lower().strip()
         if(choice == "n"):
             return None
         
@@ -125,10 +133,15 @@ def ask_and_get_capture(ellipsis_token, ellipsis_map):
 
 
 def download_from_url(url, folder, filetype):
-    print("Clearing " + folder)
-    files = [f for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f))]
-    for f in files:
-        os.remove(os.path.join(folder, f))
+
+    if os.path.exists(folder):
+        print("Clearing " + folder)
+        files = [f for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f))]
+        for f in files:
+            os.remove(os.path.join(folder, f))
+    else:
+        print("Making folder " + folder)
+        os.makedirs(folder)
     
     if(filetype != "csv" and filetype != "zip"):
         print("invalid file type")
@@ -177,7 +190,7 @@ def process_vector_file(folder, file):
 
 def ask_and_download_ee_asset(is_shape):
 
-    folder = "temp"
+    folder = os.path.join(scriptDirectory, "temp")
 
     while True: 
         asset_name = input("input your earth engine asset name: ")
@@ -211,9 +224,23 @@ def ask_and_download_ee_asset(is_shape):
         return files
 
 def upload_raster_files(files, ellipsis_token, block_id, capture_id):
+    info = el.metadata(block_id, token=ellipsis_token)
+    capture = next((t for t in info["timestamps"] if t["id"] == capture_id), None)
+    if capture["status"] == "finished":
+        deactivate = input(f"The timestamp is activated, meaning that you cannot upload data to it. Do you want to deactivate [y/n]? ").strip().lower()
+        if deactivate != "y":
+            return
+        print("Deactivating capture... warning, this is experimental and might not work. Look in the settings in the Ellipsis App to append with a new capture.")
+        el.activateTimestamp(block_id, capture_id, False, ellipsis_token)
+
     for file in files:
         print(f"Uploading {file} to capture {capture_id}...")
-        el.uploadRasterFile(block_id, capture_id, file, ellipsis_token)
+        try:
+            el.uploadRasterFile(block_id, capture_id, file, ellipsis_token)
+        except:
+            print("Uploading failed. Verify that the capture has been deactivated in the ellipsis-drive app.")
+        
+        
 
 def upload_geometry_files(files, ellipsis_token, block_id, layer_id):
     for file in files:
@@ -249,10 +276,10 @@ def test_main_vector():
         
 
 def main():
-    debug = len(sys.argv) > 1 and sys.argv[1] == "debug"
+    autologin = len(sys.argv) > 1 and sys.argv[1] == "autologin"
     
-    ellipsis_token = get_ellipsis_token() if debug else ask_ellipsis_token()
-    if debug:
+    ellipsis_token = get_ellipsis_token() if autologin else ask_ellipsis_token()
+    if autologin:
         init_ee_service_account()
     else:
         ee.Authenticate()
@@ -273,7 +300,6 @@ def main():
             while wants_another_asset == "y" and target_id != None:
 
                 asset_files = ask_and_download_ee_asset(is_vector_block)
-
                 (upload_geometry_files(asset_files, ellipsis_token, ellipsis_block["id"], target_id) if is_vector_block
                     else upload_raster_files(asset_files, ellipsis_token, ellipsis_block["id"], target_id))
 
