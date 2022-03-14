@@ -104,12 +104,15 @@ def ask_and_get_capture(ellipsis_token, ellipsis_map):
     captureCount = len(ellipsis_map["timestamps"])
     
     while(True):
-        choice = input("Do you want to add data to an existing capture [e] or a new capture [y]? " if captureCount > 0 else "There are no existing captures. Do you want to create one [y/n]? ").lower().strip()
+        choice = input("The script will now create a capture for your data, do you wish to proceed? [y/n]? " if captureCount > 0 else "There are no existing captures. Do you want to create one [y/n]? ").lower().strip()
         if(choice == "n"):
             return None
         
+        # Legacy option. Deprecated.
         if(choice == "e"):
             for i, capture in enumerate(ellipsis_map["timestamps"]):
+                if capture["status"] == "finished":
+                    continue
                 print(f"""[{i}] 
                 id: {capture["id"]}
                 from: {capture["dateFrom"]}
@@ -131,7 +134,7 @@ def ask_and_get_capture(ellipsis_token, ellipsis_map):
             delta = timedelta(days=7)
             start = datetime.datetime.now() - delta
             end = datetime.now()
-            print(f"Creating a time stamp from {str(start)} to {str(end)}. It is not yet activated.")
+            print(f"Creating a capture from {str(start)} to {str(end)}. It is not yet activated.")
             return el.addTimestamp(ellipsisRasterMap["id"], ellipsis_token, startDate=start, endDate=end)["id"]
 
         print("That is not a valid choice.")
@@ -198,7 +201,10 @@ def ask_and_download_ee_asset(is_shape):
     folder = os.path.join(scriptDirectory, "temp")
 
     while True: 
-        asset_name = input("input your earth engine asset name: ")
+        asset_name = input("input your earth engine asset name (enter to exit): ")
+
+        if asset_name == "":
+            return None
 
         asset = None
         if is_shape:
@@ -309,6 +315,8 @@ def main():
             while wants_another_asset == "y" and target_id != None:
 
                 asset_files = ask_and_download_ee_asset(is_vector_block)
+                if asset_files == None: 
+                    continue
                 (upload_geometry_files(asset_files, ellipsis_token, ellipsis_block["id"], target_id) if is_vector_block
                     else upload_raster_files(asset_files, ellipsis_token, ellipsis_block["id"], target_id))
 
