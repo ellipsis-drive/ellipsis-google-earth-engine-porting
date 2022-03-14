@@ -19,8 +19,10 @@ except ImportError:
 scriptDirectory = Path(__file__).parent.absolute()
 
 def init_ee_service_account():
-    service_account = 'eetestservice@ee-dutchjelly.iam.gserviceaccount.com'
-    credentials = ee.ServiceAccountCredentials(service_account, '.private-key.json')
+    service_account_email = None
+    with open('.private-key.json') as f:
+        service_account_email = json.load(f)['client_email']
+    credentials = ee.ServiceAccountCredentials(service_account_email, '.private-key.json')
     ee.Initialize(credentials)
 
 def ask_ellipsis_token():
@@ -132,10 +134,10 @@ def ask_and_get_capture(ellipsis_token, ellipsis_map):
 
         if(choice == "y"):
             delta = timedelta(days=7)
-            start = datetime.datetime.now() - delta
+            start = datetime.now() - delta
             end = datetime.now()
             print(f"Creating a capture from {str(start)} to {str(end)}. It is not yet activated.")
-            return el.addTimestamp(ellipsisRasterMap["id"], ellipsis_token, startDate=start, endDate=end)["id"]
+            return el.addTimestamp(ellipsis_map["id"], ellipsis_token, startDate=start, endDate=end)["id"]
 
         print("That is not a valid choice.")
 
