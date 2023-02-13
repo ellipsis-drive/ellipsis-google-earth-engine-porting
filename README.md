@@ -1,4 +1,3 @@
-> This project is still in beta. We will actively fix bugs that you report.
 
 ### Import Google Earth Engine assets to Ellipsis Drive blocks
 
