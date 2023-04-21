@@ -40,8 +40,8 @@ def get_ellipsis_token():
 def create_and_get_ellipsis_block(ellipsisToken, name):
     isShapeChoice = None
     while not isShapeChoice == "s" and not isShapeChoice == "m":
-        isShapeChoice = input("do you want to create a shape [s] or map [m]? ").lower().strip()
-    isShape = isShapeChoice == "s"
+        isShapeChoice = input("do you want to create a vector layer [v] or raster layer [r]? ").lower().strip()
+    isShape = isShapeChoice == "v"
 
     return (True, el.path.vector.add(name=name, token=ellipsisToken)) if isShape else (False, el.path.raster.add(name=name, token=ellipsisToken))
 
@@ -49,7 +49,7 @@ def ask_and_get_ellipsis_block(ellipsis_token):
     shapes = None
     maps = None
     while not shapes and not maps: 
-        name = input("input your (new) ellipsis map name (empty to exit): ")
+        name = input("input your (new) ellipsis layer name (empty to exit): ")
         maps = el.path.search(text=name, pathTypes=['raster'] , root=['myDrive', 'sharedWithMe', 'favorites'], token=ellipsis_token)
         shapes = el.path.search(text=name, pathTypes=['vector'], root=['myDrive', 'sharedWithMe', 'favorites'], token=ellipsis_token)
 
@@ -57,7 +57,7 @@ def ask_and_get_ellipsis_block(ellipsis_token):
             return (None,None)
 
         if not shapes and not maps:
-            print("could not find map with name " + name)
+            print("could not find layer with name " + name)
             createChoice = input("do you want to create one? [y/n]: ")
             if createChoice == "y":
                 return create_and_get_ellipsis_block(ellipsis_token, name)
@@ -106,29 +106,29 @@ def ask_and_get_capture(ellipsis_token, ellipsis_map):
     captureCount = len(ellipsis_map["timestamps"])
     
     while(True):
-        choice = input("The script will now create a capture for your data, do you wish to proceed? [y/n]? " if captureCount > 0 else "There are no existing captures. Do you want to create one [y/n]? ").lower().strip()
+        choice = input("The script will now create a timestamp for your data, do you wish to proceed? [y/n]? " if captureCount > 0 else "There are no existing timestamps. Do you want to create one [y/n]? ").lower().strip()
         if(choice == "n"):
             return None
         
         # Legacy option. Deprecated.
         if(choice == "e"):
             for i, capture in enumerate(ellipsis_map["timestamps"]):
-                if capture["status"] == "finished":
+                if capture["status"] == "active":
                     continue
                 print(f"""[{i}] 
                 id: {capture["id"]}
-                from: {capture["dateFrom"]}
-                to: {capture["dateTo"]}
+                from: {capture["from"]}
+                to: {capture["to"]}
                 """) 
 
             captureChoice = None
             while(captureChoice == None or captureChoice < 0 or captureChoice >= captureCount):
                 try:
-                    captureChoice = int(input("what capture do you want to choose? "))
+                    captureChoice = int(input("what timestamp do you want to choose? "))
                 except ValueError:
                     print("That's not an int!")
                 if(captureChoice >= captureCount):
-                    print("There is no capture with that index")
+                    print("There is no timestamp with that index")
             
             return ellipsis_map["timestamps"][captureChoice]["id"]
 
@@ -136,11 +136,11 @@ def ask_and_get_capture(ellipsis_token, ellipsis_map):
             delta = timedelta(days=7)
             start = datetime.now() - delta
             end = datetime.now()
-            print(f"Creating a capture from {str(start)} to {str(end)}. It is not yet activated.")
+            print(f"Creating a timestamp from {str(start)} to {str(end)}. It is not yet activated.")
             if(ellipsis_map['type'] == 'raster'):
-                timestampId = el.path.raster.timestamp.add(pathId = ellipsis_map["id"], token= ellipsis_token, date={'start':start, 'end':end})["id"]                
+                timestampId = el.path.raster.timestamp.add(pathId = ellipsis_map["id"], token= ellipsis_token, date={'from':start, 'to':end})["id"]                
             else:
-                timestampId = el.path.vector.timestamp.add(pathId = ellipsis_map["id"], token= ellipsis_token, date={'start':start, 'end':end})["id"]                
+                timestampId = el.path.vector.timestamp.add(pathId = ellipsis_map["id"], token= ellipsis_token, date={'from':start, 'to':end})["id"]                
 
             return timestampId
 
@@ -248,15 +248,15 @@ def upload_raster_files(files, ellipsis_token, block_id, capture_id):
         deactivate = input(f"The timestamp is activated, meaning that you cannot upload data to it. Do you want to deactivate [y/n]? ").strip().lower()
         if deactivate != "y":
             return
-        print("Deactivating capture... warning, this is experimental and might not work. Look in the settings in the Ellipsis App to append with a new capture.")
-        el.path.raster.timestamp.activate(pathId = block_id, timestampId = capture_id, token = ellipsis_token)
+        print("Deactivating timestamp...")
+        el.path.raster.timestamp.deactivate(pathId = block_id, timestampId = capture_id, token = ellipsis_token)
 
     for file in files:
-        print(f"Uploading {file} to capture {capture_id}...")
+        print(f"Uploading {file} to timestamp {capture_id}...")
         try:
             el.path.raster.timestamp.file.add(pathId = block_id, timestampId = capture_id, filePath=file, token = ellipsis_token, fileFormat='tif')
         except:
-            print("Uploading failed. Verify that the capture has been deactivated in the ellipsis-drive app.")
+            print("Uploading failed. Verify that the timestamp has been deactivated in the ellipsis-drive app.")
         
         
 
@@ -274,7 +274,7 @@ def test_main_raster():
     delta = timedelta(days=7)
     start = datetime.now() - delta
     end = datetime.now()
-    captureId = el.path.raster.timestamp.add(pathId = ellipsisRasterMap["id"], token= ellipsisToken, date={'start': start, 'end': end})["id"]
+    captureId = el.path.raster.timestamp.add(pathId = ellipsisRasterMap["id"], token= ellipsisToken, date={'from': start, 'to': end})["id"]
 
     assetFiles = ask_and_download_ee_asset(False)
     upload_geometry_files(assetFiles, ellipsisToken, ellipsisRasterMap["id"], captureId)
@@ -327,9 +327,9 @@ def main():
                 (upload_geometry_files(asset_files, ellipsis_token, ellipsis_block["id"], target_id) if is_vector_block
                     else upload_raster_files(asset_files, ellipsis_token, ellipsis_block["id"], target_id))
 
-                wants_another_asset = input(f"do you want to upload another asset to this {('layer' if is_vector_block else 'capture')}? [y/n] ").lower().strip()
-            wants_another_target = input(f"do you want to select another target {('layer' if is_vector_block else 'capture')}? [y/n] ").lower().strip()
-        wants_another_block = input(f"do you want to select another block to upload data to? [y/n] ").lower().strip()
+                wants_another_asset = input(f"do you want to upload another asset to this timestamp? [y/n] ").lower().strip()
+            wants_another_target = input(f"do you want to select another target timestamp? [y/n] ").lower().strip()
+        wants_another_block = input(f"do you want to select another layer to upload data to? [y/n] ").lower().strip()
 
 if __name__ == "__main__":
     main()
