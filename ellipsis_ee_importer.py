@@ -30,12 +30,12 @@ def ask_ellipsis_token():
         username = input("specify your ellipsis drive username: ")
         password = getpass("specify your ellipsis drive password: ")
         try:
-            return el.logIn(username=username, password=password)
+            return el.account.logIn(username=username, password=password)
         except:
             print("Invalid login credentials.")
 
 def get_ellipsis_token():
-    return el.logIn(username=secret.username, password=secret.password)
+    return el.account.logIn(username=secret.username, password=secret.password)
 
 def create_and_get_ellipsis_block(ellipsisToken, name):
     isShapeChoice = None
@@ -43,15 +43,15 @@ def create_and_get_ellipsis_block(ellipsisToken, name):
         isShapeChoice = input("do you want to create a shape [s] or map [m]? ").lower().strip()
     isShape = isShapeChoice == "s"
 
-    return (True, el.newShape(name=name, token=ellipsisToken)) if isShape else (False, el.newMap(name=name, token=ellipsisToken))
+    return (True, el.path.vector.add(name=name, token=ellipsisToken)) if isShape else (False, el.path.raster.add(name=name, token=ellipsisToken))
 
 def ask_and_get_ellipsis_block(ellipsis_token):
     shapes = None
     maps = None
     while not shapes and not maps: 
         name = input("input your (new) ellipsis map name (empty to exit): ")
-        maps = el.getMaps(name=name, fuzzyMatch=False, token=ellipsis_token)
-        shapes = el.getShapes(name=name, fuzzyMatch=False, token=ellipsis_token)
+        maps = el.path.search(text=name, pathTypes=['raster'] , root=['myDrive', 'sharedWithMe', 'favorites'], token=ellipsis_token)
+        shapes = el.path.search(text=name, pathTypes=['vector'], root=['myDrive', 'sharedWithMe', 'favorites'], token=ellipsis_token)
 
         if not name or name.strip() == "":
             return (None,None)
@@ -96,7 +96,7 @@ def ask_and_get_layer(ellipsis_token, ellipsis_map):
             while(name == None or name == ""):
                 name = input("Please specify the name of the new layer\n").strip()
             print("Creating a new layer..")
-            return el.addShapeLayer(ellipsis_map, name, ellipsis_token)
+            return el.path.vector.timestamp.add(pathId = ellipsis_map, name = name, token= ellipsis_token)
             
         print("That is not a valid choice.")
 
@@ -137,7 +137,12 @@ def ask_and_get_capture(ellipsis_token, ellipsis_map):
             start = datetime.now() - delta
             end = datetime.now()
             print(f"Creating a capture from {str(start)} to {str(end)}. It is not yet activated.")
-            return el.addTimestamp(ellipsis_map["id"], ellipsis_token, startDate=start, endDate=end)["id"]
+            if(ellipsis_map['type'] == 'raster'):
+                timestampId = el.path.raster.timestamp.add(pathId = ellipsis_map["id"], token= ellipsis_token, date={'start':start, 'end':end})["id"]                
+            else:
+                timestampId = el.path.vector.timestamp.add(pathId = ellipsis_map["id"], token= ellipsis_token, date={'start':start, 'end':end})["id"]                
+
+            return timestampId
 
         print("That is not a valid choice.")
 
@@ -237,19 +242,19 @@ def ask_and_download_ee_asset(is_shape):
         return files
 
 def upload_raster_files(files, ellipsis_token, block_id, capture_id):
-    info = el.metadata(block_id, token=ellipsis_token)
+    info = el.path.get(pathId = block_id, token=ellipsis_token)
     capture = next((t for t in info["timestamps"] if t["id"] == capture_id), None)
-    if capture["status"] == "finished":
+    if capture["status"] == "active":
         deactivate = input(f"The timestamp is activated, meaning that you cannot upload data to it. Do you want to deactivate [y/n]? ").strip().lower()
         if deactivate != "y":
             return
         print("Deactivating capture... warning, this is experimental and might not work. Look in the settings in the Ellipsis App to append with a new capture.")
-        el.activateTimestamp(block_id, capture_id, False, ellipsis_token)
+        el.path.raster.timestamp.activate(pathId = block_id, timestampId = capture_id, token = ellipsis_token)
 
     for file in files:
         print(f"Uploading {file} to capture {capture_id}...")
         try:
-            el.uploadRasterFile(block_id, capture_id, file, ellipsis_token)
+            el.path.raster.timestamp.file.add(pathId = block_id, timestampId = capture_id, filePath=file, token = ellipsis_token, fileFormat='tif')
         except:
             print("Uploading failed. Verify that the capture has been deactivated in the ellipsis-drive app.")
         
@@ -258,18 +263,18 @@ def upload_raster_files(files, ellipsis_token, block_id, capture_id):
 def upload_geometry_files(files, ellipsis_token, block_id, layer_id):
     for file in files:
         print(f"Uploading {file} to layer {layer_id}...")
-        el.uploadGeometryFile(block_id, layer_id, file, "geojson", ellipsis_token)
+        el.path.vector.timestamp.file.add(pathId = block_id, timestampId = layer_id, filePath=file, fileFormat= "geojson", token= ellipsis_token)
             
 def test_main_raster():
     init_ee_service_account()
     ellipsisToken = get_ellipsis_token()
-    ellipsisRasterMap = el.getMaps(name="rasterfromee", fuzzyMatch=False, token=ellipsisToken)[0]
+    ellipsisRasterMap = el.path.search(text="rasterfromee", pathTypes=['raster'], root=['myDrive', 'sharedWithMe', 'favorites'],token=ellipsisToken)[0]
 
     # For testing, use new timestamps
     delta = timedelta(days=7)
     start = datetime.now() - delta
     end = datetime.now()
-    captureId = el.addTimestamp(ellipsisRasterMap["id"], ellipsisToken, startDate=start, endDate=end)["id"]
+    captureId = el.path.raster.timestamp.add(pathId = ellipsisRasterMap["id"], token= ellipsisToken, date={'start': start, 'end': end})["id"]
 
     assetFiles = ask_and_download_ee_asset(False)
     upload_geometry_files(assetFiles, ellipsisToken, ellipsisRasterMap["id"], captureId)
@@ -282,7 +287,7 @@ def test_main_vector():
     # For testing, use new layer.
     geojson_files = ask_and_download_ee_asset(True)
 
-    layerId = el.addShapeLayer(ellipsisVectorMap["id"], str(datetime.now()), ellipsisToken)["id"]
+    layerId = el.path.search(text="rasterfromee", pathTypes=['vector'], root=['myDrive', 'sharedWithMe', 'favorites'],token=ellipsisToken)[0]
     print(f"added new layer with id {layerId}")
 
     upload_geometry_files(geojson_files, ellipsisToken, ellipsisVectorMap["id"], layerId)
