@@ -11,8 +11,8 @@ import csv
 import sys
 from pathlib import Path
 from getpass import getpass
+import requests
 
-projectId = 'ee-huurdersverenigingpacman'
 asset = 'projects/ee-huurdersverenigingpacman/assets/testFolder'
 edFolderId = 'e89d5e56-5cc4-43c3-a27b-60571223b067'
 asset = 'projects/ee-huurdersverenigingpacman/assets/testFolder/buildings_mini3'
@@ -21,13 +21,22 @@ asset = 'projects/ee-huurdersverenigingpacman/assets/testFolder/buildings_mini3'
 #pip install geeup
 try:
     import secret
-    try:
-        el.apiManager.baseUrl = secret.apiUrl
-    except:
-        pass
 except ImportError:
     a = 1
-    
+
+try:
+    apiUrl = secret.apiUrl
+    editUrl = True
+except:
+    editUrl= False
+if editUrl:
+    try:
+        requests.get(apiUrl)
+    except:
+        raise ValueError('The url ', apiUrl, ' is not valid')
+    el.apiManager.baseUrl = secret.apiUrl
+
+
 
 scriptDirectory = Path(__file__).parent.absolute()
 
@@ -104,8 +113,13 @@ def addVector(name, parent_id, parentId,ellipsis_token):
 def selectAsset(ellipsis_token):
     while True:
         parent = input("Type the Google Earth Engine asset you wish to export (the asset can be a folder) for example 'projects/myAccount/assets/testFolder': ")
+        projectId = parent.split('/')[1]
+        ee.Initialize(project=projectId)
+        parent_asset = ee.data.getAsset(parent)
 
         try:
+            projectId = parent.split('/')[1]
+            ee.Initialize(project=projectId)
             parent_asset = ee.data.getAsset(parent)
             break
         except:
@@ -148,18 +162,6 @@ def handleItem(parent_asset, EDparentId, ellipsis_token):
             handleItem(child_asset, EDolderId, ellipsis_token)
 
 
-def getProject():
-    try:
-        projectId = secret.projectId
-        ee.Initialize(project=projectId)
-    except:
-        while True:
-            projectId = input("Provide your Google earth engine project id: ")
-            try:
-                ee.Initialize(project=projectId)
-                break
-            except:
-                print('Project id not valid or not found')
 
 
 def importOrExport():
@@ -181,9 +183,7 @@ def main():
         init_ee_service_account()
     except:
         ee.Authenticate() #use force to force
-        getProject()
 
-    #mode = importOrExport()
 
     selectAsset(ellipsis_token)
 
