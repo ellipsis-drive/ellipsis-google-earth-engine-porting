@@ -40,4 +40,13 @@ password = "password"
 
 The `.private-key.json` is generated from a google service account. Google has a guide on making this service account, and activating it. When activated and given the correct permissions, the script will be able to use this service account to access your assets.
 
+**Setting up auto-login**
+To update the Ellipsis Drive api url add the following line to the secret.py script:
+```py
+apiUrl = 'https://example.api.ellipsis-drive.com/v3'
+```
+Updating the apiUrl is needed if you work with a private instance of Ellipsis Drive.
+
+
+
 
