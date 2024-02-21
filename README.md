@@ -1,5 +1,5 @@
 
-### Import Google Earth Engine assets to Ellipsis Drive blocks
+### Import Google Earth Engine assets to Ellipsis Drive layers
 
 This python command-line tool allows you to import Google Earth Engine assets to Ellipsis Drive. It works for both raster and vector data. You can also migrate an entire folder tree from Google Earth Engine by referencing the folder asset.
 
