@@ -1,3 +1,7 @@
+
+#https://console.cloud.google.com/marketplace/product/google/drive.googleapis.com
+#https://code.earthengine.google.com/
+
 import shutil
 
 import ee
@@ -12,11 +16,31 @@ import sys
 from pathlib import Path
 from getpass import getpass
 import requests
+import time
+import uuid
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
+
+gauth = GoogleAuth()
+
+print('Please login to your Google Drive')
+gauth.LocalWebserverAuth()
+drive = GoogleDrive(gauth)
+
+
+
+
+
+
+
+################################33333
 
 asset = 'projects/ee-huurdersverenigingpacman/assets/testFolder'
 edFolderId = 'e89d5e56-5cc4-43c3-a27b-60571223b067'
 asset = 'projects/ee-huurdersverenigingpacman/assets/testFolder/buildings_mini3'
-
+asset = 'projects/edtnctest/assets/folder1/'
+asset = 'projects/edtnctest/assets/Trompenburg_2d'
+asset = 'projects/edtnctest/assets/collection'
 
 #pip install geeup
 try:
@@ -86,16 +110,61 @@ def download_from_url(url, folder, filetype):
     return files
 
 
-def addRaster(name, parent_id, parentId, ellipsis_token):
-    asset = ee.Image(parent_id)
-    url = asset.getDownloadURL()
-    folder = os.path.join(scriptDirectory, "temp")
-    files = download_from_url(url, folder,  "zip")
-    pathId = el.path.raster.add(name = name, parentId=parentId, token= ellipsis_token)['id']
-    timestampId = el.path.raster.timestamp.add(pathId = pathId, token = ellipsis_token)['id']
-    for file in files:
-        el.path.raster.timestamp.file.add(pathId=pathId, timestampId=timestampId, token = ellipsis_token, filePath= file, fileFormat='tif')
-    el.path.raster.timestamp.activate(pathId=pathId, timestampId=timestampId, token=ellipsis_token)
+def addRaster(name, parent_id, parentId, ellipsis_token, parent_type):
+
+    if parent_type == 'IMAGE':
+        assets = [parent_id]
+    else:
+        collection = ee.ImageCollection(parent_id)
+        N = collection.size().getInfo()
+        l = collection.toList(N)
+
+        assets = [ ee.Image(l.get(i)) for i in range(N)]
+
+    for x in assets:
+        folderUuid = str(uuid.uuid4())
+        gDriveFolder = drive.CreateFile({'title': folderUuid, 'mimeType': 'application/vnd.google-apps.folder'})
+        gDriveFolder.Upload()
+
+        ###image collection bestaat ook, moet nog itereren in dat geval
+        asset = ee.Image(x)
+        info = asset.getInfo()
+        bands = info['bands']
+        w = 1
+        h = 1
+        for b in bands:
+            d = b['dimensions']
+            if d[0] > w:
+                w = d[0]
+            if d[1]> h:
+                h = d[1]
+        task = ee.batch.Export.image.toDrive(image=asset, folder=folderUuid, dimensions=(w,h), maxPixels=w*h*2 )
+
+        task.start()
+        while task.active():
+            time.sleep(5)
+
+        file_list = drive.ListFile({'q': "'" + gDriveFolder.metadata['id'] + "' in parents and trashed=false"}).GetList()
+
+        folder = os.path.join(scriptDirectory, "temp")
+        try:
+            shutil.rmtree(folder)
+        except:
+            pass
+        os.mkdir(folder)
+
+        pathId = el.path.raster.add(name = name, parentId=parentId, token= ellipsis_token)['id']
+        timestampId = el.path.raster.timestamp.add(pathId = pathId, token = ellipsis_token)['id']
+        for file in file_list:
+            f = drive.CreateFile({'id': file.metadata['id']})
+            out_path = os.path.join(folder, file.metadata['title'])
+            f.GetContentFile(out_path)
+
+            el.path.raster.timestamp.file.add(pathId=pathId, timestampId=timestampId, token = ellipsis_token, filePath= out_path, fileFormat='tif')
+        el.path.raster.timestamp.activate(pathId=pathId, timestampId=timestampId, token=ellipsis_token)
+        gDriveFolder.Trash()
+        gDriveFolder.Delete()
+        shutil.rmtree(folder)
 
 def addVector(name, parent_id, parentId,ellipsis_token):
     asset = ee.FeatureCollection(parent_id)
@@ -113,9 +182,6 @@ def addVector(name, parent_id, parentId,ellipsis_token):
 def selectAsset(ellipsis_token):
     while True:
         parent = input("Type the Google Earth Engine asset you wish to export (the asset can be a folder) for example 'projects/myAccount/assets/testFolder': ")
-        projectId = parent.split('/')[1]
-        ee.Initialize(project=projectId)
-        parent_asset = ee.data.getAsset(parent)
 
         try:
             projectId = parent.split('/')[1]
@@ -147,9 +213,9 @@ def handleItem(parent_asset, EDparentId, ellipsis_token):
     if len(name) > 64:
         name = name[(len(name) -64) : 64]
 
-    if parent_type == 'IMAGE':
+    if parent_type == 'IMAGE' or parent_type == 'IMAGE_COLLECTION':
         print('adding', parent_id, ' as raster layer to Ellipsis Drive')
-        addRaster(name, parent_id, EDparentId, ellipsis_token )
+        addRaster(name, parent_id, EDparentId, ellipsis_token, parent_type )
     if parent_type == 'TABLE':
         print('adding', parent_id, ' as vector layer to Ellipsis Drive')
         addVector(name, parent_id, EDparentId, ellipsis_token )
@@ -194,6 +260,7 @@ def main():
     folder = os.path.join(scriptDirectory, "temp")
     if os.path.exists(folder):
         shutil.rmtree(folder)
+
     print('Exiting process')
 
 if __name__ == "__main__":
