@@ -9,13 +9,42 @@ The script uses the Ellipsis-Drive python API, and the Google Earth Engine pytho
 ```bash
 pip install earthengine-api
 pip install ellipsis
+pip install PyDrive
 ```
+
+#### Preliminary work
+This package exports data from Google Earth Engine via your Google Drive. To this end you need to enable an OAuth client for you Google Drive.
+
+To create such a client visit the following link:
+https://console.cloud.google.com/marketplace/product/google/drive.googleapis.com
+
+Click enable and after that manage:
+
+![afbeelding](https://github.com/ellipsis-drive/ellipsis-google-earth-engine-porting/assets/52099544/48f0875a-58f9-49d0-b8e5-605d69740db9)
+
+Click create credentials on the right of the screen and pick Oauth Client:
+
+![afbeelding](https://github.com/ellipsis-drive/ellipsis-google-earth-engine-porting/assets/52099544/ebc89a33-5e95-47e5-91bc-26f9ea6c3a65)
+
+In the wizzard choose type 'web application' and for both uri's make sure to fill in 'http://localhost:8080'!
+
+Click done and download the json with client details.
+
+IMPORTANT:
+renaem this file to 'client_secrets.json' and place it in the directory of the foler.
+
+You are now ready to use the package.
+
 
 #### Usage
 To use this tool, simply clone this repository or copy the script file to an empty directory and run `python3 ellipsis_ee_importer.py`. 
 
-***First it will ask for*** your ellipsis drive login credentials and permissions to access your google earth engine projects.
+***First it it will*** Open the browser and let you approve the script to use your Google Drive.
 
+
+***Second it it will ask for*** your ellipsis drive login credentials and permissions to access your google earth engine projects.
+
+***After this it will*** open the browser and let you approve the script to use your Google Earth Engine data.  
 
 ***After this it will ask*** you for the id of a Google Earth Engine asset to migrate. The id of an assets looks as follows:
 `projects/[ee-username]/assets/[yourassetname]`.
